@@ -7,6 +7,8 @@ name = "pypi"
 bdfparser = "*"
 
 [dev-packages]
+pipenv-setup = "*"
+vistir = "<0.7.0"
 
 [requires]
 python_version = "3.12"
