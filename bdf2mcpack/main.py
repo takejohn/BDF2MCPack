@@ -89,23 +89,8 @@ class ProviderGlyph:
     def glyph(self):
         return self.__glyph
 
-    def bitmap(self):
-        return self.__bitmap
-
-    def ascent(self):
-        return self.__provider_type.ascent
-
     def glyph_filename(self):
         return f"font/{self.__glyph.cp():06x}.png"
-
-    def create_provider(self):
-        return {
-            "type": "bitmap",
-            "file": "minecraft:" + self.glyph_filename(),
-            "height": self.__provider_type.height,
-            "ascent": self.__provider_type.ascent,
-            "chars": [self.__glyph.chr()]
-        }
 
     def to_image(self):
         width = self.__bitmap.width()
@@ -128,7 +113,7 @@ class Provider:
 
     def __init__(self, provider_type: ProviderType, classifier: int):
         self.__provider_type = provider_type
-        bitmap_height = provider_type.bitmap_size.height
+        _, bitmap_height = provider_type.bitmap_size
         vertical_glyph_max = Provider.__VERTICAL_PIXEL_MAX // bitmap_height
         self.__glyph_max = vertical_glyph_max * Provider.__HORIZONTAL_GLYPH_MAX
         self.__glyphs: list[ProviderGlyph] = list()
@@ -252,10 +237,6 @@ class ResourcePack(ZipFile):
         self.write_json("assets/minecraft/font/default.json", {
             "providers": providers
         })
-
-    def write_provider_glyph(self, provider_glyph: ProviderGlyph):
-        filename = provider_glyph.glyph_filename()
-        self.write_image(filename, provider_glyph.to_image())
 
     def write_image(self, filename: str, image: Image):
         with self.open(filename, "w") as file:
