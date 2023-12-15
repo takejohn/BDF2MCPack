@@ -4,7 +4,7 @@ import itertools
 
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from bdfparser import Font, Glyph, Bitmap
+from bdfparser import Font, Glyph
 from io import TextIOWrapper
 from zipfile import ZipFile
 from PIL import Image
@@ -19,27 +19,45 @@ DEFAULT_COMPRESS_LEVEL = 6
 
 COLOR_TRANSPARENT = (0x00, 0x00, 0x00, 0x00)
 
-def main():
-    argument_parser = ArgumentParser(description="Creates a resource pack for Minecraft from a BDF type file.")
-    argument_parser.add_argument("input", help="The filename of the BDF file to load")
-    argument_parser.add_argument("-o", default=DEFAULT_OUTPUT_FILENAME, metavar="output",
-                                 help=f"The Filename of the resource pack to create (default: {DEFAULT_OUTPUT_FILENAME})")
-    argument_parser.add_argument("--format", "-f", default=DEFAULT_PACK_FORMAT, type=int,
-                                 help=f"The value to set as pack.pack_format in pack.mcmeta (default: {DEFAULT_PACK_FORMAT})")
-    argument_parser.add_argument("--description", "-d", default=DEFAULT_DESCRIPTION,
-                                 help=f"The text to set as pack.description in pack.mcmeta (default: \"{DEFAULT_DESCRIPTION}\")")
-    argument_parser.add_argument("--compresslevel", "-c", default=DEFAULT_COMPRESS_LEVEL, choices=range(0, 9 + 1),
-                                 help=f"The compression level used when writing the output file (default: {DEFAULT_COMPRESS_LEVEL})")
-    args=argument_parser.parse_args()
-    convert(args.input, output_filename=args.o, pack_format=args.format, description=args.description, compresslevel=args.compresslevel)
 
-def convert(input_filename: str, output_filename: str, pack_format: int, description: str, compresslevel: int):
+def main():
+    argument_parser = ArgumentParser(
+            description="Creates a resource pack for Minecraft"
+            "from a BDF type file.")
+    argument_parser.add_argument(
+            "input", help="The filename of the BDF file to load")
+    argument_parser.add_argument(
+            "-o", default=DEFAULT_OUTPUT_FILENAME,
+            metavar="output",
+            help=f"The Filename of the resource pack to create"
+                 f" (default: {DEFAULT_OUTPUT_FILENAME})")
+    argument_parser.add_argument(
+            "--format", "-f", default=DEFAULT_PACK_FORMAT, type=int,
+            help=f"The value to set as pack.pack_format in pack.mcmeta"
+                 f" (default: {DEFAULT_PACK_FORMAT})")
+    argument_parser.add_argument(
+            "--description", "-d", default=DEFAULT_DESCRIPTION,
+            help=f"The text to set as pack.description in pack.mcmeta"
+                 f" (default: \"{DEFAULT_DESCRIPTION}\")")
+    argument_parser.add_argument(
+            "--compresslevel", "-c", default=DEFAULT_COMPRESS_LEVEL,
+            choices=range(0, 9 + 1),
+            help=f"The compression level used when writing the output file"
+                 f"(default: {DEFAULT_COMPRESS_LEVEL})")
+    args = argument_parser.parse_args()
+    convert(args.input, output_filename=args.o, pack_format=args.format,
+            description=args.description, compresslevel=args.compresslevel)
+
+
+def convert(input_filename: str, output_filename: str, pack_format: int,
+            description: str, compresslevel: int):
     with ResourcePack(output_filename, compresslevel=compresslevel) as output:
         output.write_pack_mcmeta(pack_format, description)
         font = Font(input_filename)
         for glyph in font.iterglyphs():
             output.add_glyph(ProviderGlyph(glyph))
         output.flush()
+
 
 @dataclass(frozen=True)
 class ProviderType:
@@ -48,7 +66,10 @@ class ProviderType:
     bitmap_size: (int, int)
 
     def base_name(self, classifier):
-        return f"h{self.height:02}a{self.ascent:02}_{self.bitmap_size[0]:02}x{self.bitmap_size[1]:02}_{classifier:02}"
+        return (f"h{self.height:02}a{self.ascent:02}"
+                f"_{self.bitmap_size[0]:02}x{self.bitmap_size[1]:02}"
+                f"_{classifier:02}")
+
 
 class ProviderGlyph:
     __HEIGHT = 8
@@ -56,11 +77,11 @@ class ProviderGlyph:
     def __init__(self, glyph: Glyph):
         bitmap = glyph.draw()
         height = ProviderGlyph.__HEIGHT
+        ascent = round(height * (1 - glyph.origin()[1] / bitmap.height()))
+        size = (bitmap.width(), bitmap.height())
         self.__glyph = glyph
         self.__bitmap = bitmap
-        self.__height = height
-        self.__ascent = round(height * (1 - glyph.origin()[1] / bitmap.height()))
-        self.__provider_type = ProviderType(height, round(height * (1 - glyph.origin()[1] / bitmap.height())), (bitmap.width(), bitmap.height()))
+        self.__provider_type = ProviderType(height, ascent, size)
 
     def provider_type(self):
         return self.__provider_type
@@ -89,7 +110,8 @@ class ProviderGlyph:
     def to_image(self):
         width = self.__bitmap.width()
         height = self.__bitmap.height()
-        result = Image.frombytes("RGBA", (width, height), self.__bitmap.tobytes("RGBA"))
+        result = Image.frombytes(
+                "RGBA", (width, height), self.__bitmap.tobytes("RGBA"))
         for y in range(height):
             for x in range(width):
                 xy = (x, y)
@@ -98,6 +120,7 @@ class ProviderGlyph:
                     result.putpixel(xy, (0xff, 0xff, 0xff, 0xff))
         return result
 
+
 class Provider:
     __HORIZONTAL_GLYPH_MAX = 16
 
@@ -105,7 +128,9 @@ class Provider:
 
     def __init__(self, provider_type: ProviderType, classifier: int):
         self.__provider_type = provider_type
-        self.__glyph_max = Provider.__VERTICAL_PIXEL_MAX // provider_type.height * Provider.__HORIZONTAL_GLYPH_MAX
+        bitmap_height = provider_type.bitmap_size.height
+        vertical_glyph_max = Provider.__VERTICAL_PIXEL_MAX // bitmap_height
+        self.__glyph_max = vertical_glyph_max * Provider.__HORIZONTAL_GLYPH_MAX
         self.__glyphs: list[ProviderGlyph] = list()
         self.__classifier = classifier
         self.__locked = False
@@ -114,7 +139,8 @@ class Provider:
         return (not self.__locked) and (len(self.__glyphs) < self.__glyph_max)
 
     def append_glyph(self, provider_glyph: ProviderGlyph):
-        if (not self.appendable()) or (provider_glyph.provider_type() != self.__provider_type):
+        if (not self.appendable()) or \
+           (provider_glyph.provider_type() != self.__provider_type):
             raise ValueError()
         self.__glyphs.append(provider_glyph)
 
@@ -124,13 +150,15 @@ class Provider:
     def json_object(self):
         self.lock()
         chars: list[str] = list()
-        for i, c in enumerate(map(lambda glyph: glyph.glyph().chr(), self.__glyphs)):
+        for i, c in enumerate(
+                map(lambda glyph: glyph.glyph().chr(), self.__glyphs)):
             if (i % Provider.__HORIZONTAL_GLYPH_MAX == 0):
                 chars.append(c)
             else:
                 chars[-1] = chars[-1] + c
         if chars:  # if chars is not empty
-            chars[-1] = chars[-1].ljust(self.horizontal_glyph_count(), "\u0000")
+            chars[-1] = chars[-1].ljust(
+                    self.horizontal_glyph_count(), "\u0000")
         return {
             "type": "bitmap",
             "file": "minecraft:" + self.filename(),
@@ -146,10 +174,17 @@ class Provider:
             return None
         glyph_width, glyph_height = self.__provider_type.bitmap_size
         horizontal_glyph_count = self.horizontal_glyph_count()
-        vertial_glyph_count = div_round_up(glyph_count, Provider.__HORIZONTAL_GLYPH_MAX)
-        result = Image.new("RGBA", (glyph_width * horizontal_glyph_count, glyph_height * vertial_glyph_count), COLOR_TRANSPARENT)
-        for i, image in enumerate(map(lambda glyph: glyph.to_image(), self.__glyphs)):
-            result.paste(image, (i % horizontal_glyph_count * glyph_width, i // horizontal_glyph_count * glyph_height))
+        vertial_glyph_count = div_round_up(
+                glyph_count, Provider.__HORIZONTAL_GLYPH_MAX)
+        image_width = glyph_width * horizontal_glyph_count
+        image_height = glyph_height * vertial_glyph_count
+        result = Image.new(
+                "RGBA", (image_width, image_height), COLOR_TRANSPARENT)
+        for i, image in enumerate(
+                map(lambda glyph: glyph.to_image(), self.__glyphs)):
+            x_offset = i % horizontal_glyph_count * glyph_width
+            y_offset = i // horizontal_glyph_count * glyph_height
+            result.paste(image, (x_offset, y_offset))
         return result
 
     def filename(self):
@@ -157,6 +192,7 @@ class Provider:
 
     def horizontal_glyph_count(self):
         return min(len(self.__glyphs), Provider.__HORIZONTAL_GLYPH_MAX)
+
 
 class ProviderSet:
     def __init__(self):
@@ -176,11 +212,15 @@ class ProviderSet:
         provider.append_glyph(provider_glyph)
 
     def providers(self):
-        return list(itertools.chain.from_iterable(self.__providers_dict.values()))
+        return list(
+                itertools.chain.from_iterable(self.__providers_dict.values()))
+
 
 class ResourcePack(ZipFile):
     def __init__(self, file: str, compresslevel: int):
-        super().__init__(file, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=compresslevel)
+        super().__init__(
+            file, "w", compression=zipfile.ZIP_DEFLATED,
+            compresslevel=compresslevel)
         self.__provider_set = ProviderSet()
 
     def add_glyph(self, provider_glyph: ProviderGlyph):
@@ -188,9 +228,12 @@ class ResourcePack(ZipFile):
 
     def flush(self):
         providers = self.__provider_set.providers()
-        self.write_providers(list(map(lambda provider: provider.json_object(), providers)))
+        self.write_providers(list(
+                map(lambda provider: provider.json_object(), providers)))
         for provider in providers:
-            self.write_image("assets/minecraft/textures/" + provider.filename(), provider.image())
+            self.write_image(
+                    "assets/minecraft/textures/" + provider.filename(),
+                    provider.image())
         self.__provider_set = ProviderSet()
 
     def write_json(self, filename: str, json_object: dict):
@@ -217,6 +260,7 @@ class ResourcePack(ZipFile):
     def write_image(self, filename: str, image: Image):
         with self.open(filename, "w") as file:
             image.save(file, "PNG")
+
 
 def div_round_up(a: int, b: int):
     return (a + b - 1) // b
