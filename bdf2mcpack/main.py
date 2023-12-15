@@ -19,6 +19,8 @@ DEFAULT_COMPRESS_LEVEL = 6
 
 COLOR_TRANSPARENT = (0x00, 0x00, 0x00, 0x00)
 
+COLOR_WHITE = (0xff, 0xff, 0xff, 0xff)
+
 
 def main():
     argument_parser = ArgumentParser(
@@ -102,7 +104,7 @@ class ProviderGlyph:
                 xy = (x, y)
                 _, _, _, alpha = result.getpixel(xy)
                 if alpha != 0:
-                    result.putpixel(xy, (0xff, 0xff, 0xff, 0xff))
+                    result.putpixel(xy, COLOR_WHITE)
         return result
 
 
