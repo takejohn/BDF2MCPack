@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 bdfparser = "*"
+pillow = "*"
 
 [dev-packages]
 pipenv-setup = "*"
@@ -12,3 +13,7 @@ vistir = "<0.7.0"
 
 [requires]
 python_version = "3.12"
+
+[scripts]
+setup-sync = "pipenv run pipenv-setup sync --pipfile"
+install = "pip install --force-reinstall -e ."
