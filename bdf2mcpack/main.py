@@ -30,27 +30,44 @@ def main():
     convert(args.input, output_filename=args.o, pack_format=args.format, description=args.description, compresslevel=args.compresslevel)
 
 def convert(input_filename: str, output_filename: str, pack_format: int, description: str, compresslevel: int):
-    with ZipFile(output_filename, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=compresslevel) as output:
-        write_pack_mcmeta(output, pack_format, description)
+    with ResourcePack(output_filename, compresslevel=compresslevel) as output:
+        output.write_pack_mcmeta(pack_format, description)
         font = Font(input_filename)
         providers = list()
         for glyph in font.iterglyphs():
             bitmap = glyph.draw()
             providers.append(create_provider(glyph, bitmap))
-            write_glyph_bitmap(output, glyph, bitmap)
-        write_providers(output, providers)
+            output.write_glyph_bitmap(glyph, bitmap)
+        output.write_providers(providers)
 
-def write_json(output: ZipFile, filename: str, json_object: dict):
-    with output.open(filename, "w") as json_file:
-        json.dump(json_object, TextIOWrapper(json_file, "utf-8"))
+class ResourcePack(ZipFile):
+    def __init__(self, file: str, compresslevel: int):
+        super().__init__(file, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=compresslevel)
 
-def write_pack_mcmeta(output: ZipFile, pack_format: int, description: str):
-    write_json(output, "pack.mcmeta", {
-        "pack": {
-            "pack_format": pack_format,
-            "description": description
-        }
-    })
+    def write_json(self, filename: str, json_object: dict):
+        with self.open(filename, "w") as json_file:
+            json.dump(json_object, TextIOWrapper(json_file, "utf-8"))
+
+    def write_pack_mcmeta(self, pack_format: int, description: str):
+        self.write_json("pack.mcmeta", {
+            "pack": {
+                "pack_format": pack_format,
+                "description": description
+            }
+        })
+
+    def write_providers(self, providers: list[dict]):
+        self.write_json("assets/minecraft/font/default.json", {
+            "providers": providers
+        })
+
+    def write_glyph_bitmap(self, glyph: Glyph, bitmap: Bitmap):
+        filename = "assets/minecraft/textures/" + glyph_filename(glyph)
+        self.write_image(filename, bitmap_to_image(bitmap))
+
+    def write_image(self, filename: str, image: Image):
+        with self.open(filename, "w") as file:
+            image.save(file, "PNG")
 
 def glyph_filename(glyph: Glyph):
     return f"font/{glyph.cp():06x}.png"
@@ -62,22 +79,9 @@ def create_provider(glyph: Glyph, bitmap: Bitmap):
         "type": "bitmap",
         "file": "minecraft:" + glyph_filename(glyph),
         "height": HEIGHT,
-        "ascent": (bitmap_height - glyph.origin()[1]) * HEIGHT // bitmap_height,
+        "ascent": round((bitmap_height - glyph.origin()[1]) * HEIGHT / bitmap_height),
         "chars": [glyph.chr()]
     }
-
-def write_providers(output: ZipFile, providers: list[dict]):
-    write_json(output, "assets/minecraft/font/default.json", {
-        "providers": providers
-    })
-
-def write_glyph_bitmap(output: ZipFile, glyph: Glyph, bitmap: Bitmap):
-    filename = "assets/minecraft/textures/" + glyph_filename(glyph)
-    write_image(output, filename, bitmap_to_image(bitmap))
-
-def write_image(output: ZipFile, filename: str, image: Image):
-    with output.open(filename, "w") as file:
-        image.save(file, "PNG")
 
 def bitmap_to_image(bitmap: Bitmap):
     width = bitmap.width()
