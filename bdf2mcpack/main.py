@@ -35,10 +35,51 @@ def convert(input_filename: str, output_filename: str, pack_format: int, descrip
         font = Font(input_filename)
         providers = list()
         for glyph in font.iterglyphs():
-            bitmap = glyph.draw()
-            providers.append(create_provider(glyph, bitmap))
-            output.write_glyph_bitmap(glyph, bitmap)
+            provider_glyph = ProviderGlyph(glyph)
+            providers.append(provider_glyph.create_provider())
+            output.write_provider_glyph(provider_glyph)
         output.write_providers(providers)
+
+class ProviderGlyph:
+    __HEIGHT = 8
+
+    def __init__(self, glyph: Glyph):
+        bitmap = glyph.draw()
+        height = ProviderGlyph.__HEIGHT
+        self.__glyph = glyph
+        self.__bitmap = bitmap
+        self.__height = height
+        self.__ascent = round(height * (1 - glyph.origin()[1] / bitmap.height()))
+
+    def glyph(self):
+        return self.__glyph
+    
+    def bitmap(self):
+        return self.__bitmap
+
+    def glyph_filename(self):
+        return f"font/{self.__glyph.cp():06x}.png"
+
+    def create_provider(self):
+        return {
+            "type": "bitmap",
+            "file": "minecraft:" + self.glyph_filename(),
+            "height": self.__height,
+            "ascent": self.__ascent,
+            "chars": [self.__glyph.chr()]
+        }
+
+    def to_image(self):
+        width = self.__bitmap.width()
+        height = self.__bitmap.height()
+        result = Image.frombytes("RGBA", (width, height), self.__bitmap.tobytes("RGBA"))
+        for y in range(height):
+            for x in range(width):
+                xy = (x, y)
+                _, _, _, alpha = result.getpixel(xy)
+                if alpha != 0:
+                    result.putpixel(xy, (0xff, 0xff, 0xff, 0xff))
+        return result
 
 class ResourcePack(ZipFile):
     def __init__(self, file: str, compresslevel: int):
@@ -61,36 +102,10 @@ class ResourcePack(ZipFile):
             "providers": providers
         })
 
-    def write_glyph_bitmap(self, glyph: Glyph, bitmap: Bitmap):
-        filename = "assets/minecraft/textures/" + glyph_filename(glyph)
-        self.write_image(filename, bitmap_to_image(bitmap))
+    def write_provider_glyph(self, provider_glyph: ProviderGlyph):
+        filename = provider_glyph.glyph_filename()
+        self.write_image(filename, provider_glyph.to_image())
 
     def write_image(self, filename: str, image: Image):
         with self.open(filename, "w") as file:
             image.save(file, "PNG")
-
-def glyph_filename(glyph: Glyph):
-    return f"font/{glyph.cp():06x}.png"
-
-def create_provider(glyph: Glyph, bitmap: Bitmap):
-    HEIGHT = 8
-    bitmap_height = bitmap.height()
-    return {
-        "type": "bitmap",
-        "file": "minecraft:" + glyph_filename(glyph),
-        "height": HEIGHT,
-        "ascent": round((bitmap_height - glyph.origin()[1]) * HEIGHT / bitmap_height),
-        "chars": [glyph.chr()]
-    }
-
-def bitmap_to_image(bitmap: Bitmap):
-    width = bitmap.width()
-    height = bitmap.height()
-    result = Image.frombytes("RGBA", (width, height), bitmap.tobytes("RGBA"))
-    for y in range(height):
-        for x in range(width):
-            xy = (x, y)
-            _, _, _, alpha = result.getpixel(xy)
-            if alpha != 0:
-                result.putpixel(xy, (0xff, 0xff, 0xff, 0xff))
-    return result
