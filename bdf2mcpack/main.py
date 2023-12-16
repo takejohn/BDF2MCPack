@@ -20,7 +20,9 @@ DEFAULT_COMPRESS_LEVEL = 6
 
 COLOR_TRANSPARENT = (0x00, 0x00, 0x00, 0x00)
 
-COLOR_WHITE = (0xff, 0xff, 0xff, 0xff)
+COLOR_BACKGROUND = (0xff, 0xff, 0xff, 0x0d)  # 5% opaque
+
+COLOR_FOREGROUND = (0xff, 0xff, 0xff, 0xff)
 
 RE_CODEPOINT_DOUBLE = re.compile(
         r"^(\d+|[Uu]\+(?:[\dA-Fa-f]{4,6}))-(\d+|[Uu]\+(?:[\dA-Fa-f]{4,6}))$")
@@ -134,7 +136,9 @@ class ProviderGlyph:
                 xy = (x, y)
                 _, _, _, alpha = result.getpixel(xy)
                 if alpha != 0:
-                    result.putpixel(xy, COLOR_WHITE)
+                    result.putpixel(xy, COLOR_FOREGROUND)
+                else:
+                    result.putpixel(xy, COLOR_BACKGROUND)
         return result
 
 
