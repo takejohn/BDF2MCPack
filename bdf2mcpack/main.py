@@ -1,6 +1,7 @@
 import zipfile
 import json
 import itertools
+import re
 
 from argparse import ArgumentParser
 from dataclasses import dataclass
@@ -20,6 +21,9 @@ DEFAULT_COMPRESS_LEVEL = 6
 COLOR_TRANSPARENT = (0x00, 0x00, 0x00, 0x00)
 
 COLOR_WHITE = (0xff, 0xff, 0xff, 0xff)
+
+RE_CODEPOINT_DOUBLE = re.compile(
+        r"^(\d+|[Uu]\+(?:[\dA-Fa-f]{4,6}))-(\d+|[Uu]\+(?:[\dA-Fa-f]{4,6}))$")
 
 
 def main():
@@ -45,18 +49,44 @@ def main():
             "--compresslevel", "-c", default=DEFAULT_COMPRESS_LEVEL,
             choices=range(0, 9 + 1),
             help=f"The compression level used when writing the output file"
-                 f"(default: {DEFAULT_COMPRESS_LEVEL})")
+                 f" (default: {DEFAULT_COMPRESS_LEVEL})")
+    argument_parser.add_argument(
+            "--range", "-r", nargs="*", type=codepoint_double,
+            help="The Unicode codepoint range to use. "
+                 "Accepts decimal or hexadecimal expressions of codepoints. "
+                 "Case insensitive. "
+                 "e.g. 0-127 U+100000-U+10FFFF")
     args = argument_parser.parse_args()
     convert(args.input, output_filename=args.o, pack_format=args.format,
-            description=args.description, compresslevel=args.compresslevel)
+            description=args.description, compresslevel=args.compresslevel,
+            range=args.range)
+
+
+def codepoint_double(expr: str):
+    match_result = RE_CODEPOINT_DOUBLE.match(expr)
+    if not match_result:
+        raise ValueError(
+                f"Cannot parse \"{expr}\"; the expression need to match"
+                f"regular expression {RE_CODEPOINT_DOUBLE}")
+    start_str = match_result.group(1)
+    end_str = match_result.group(2)
+    return (parse_codepoint(start_str), parse_codepoint(end_str))
+
+
+def parse_codepoint(expr: str):
+    first_char = expr[0]
+    if first_char == "U" or first_char == "u":
+        return int(expr[2:], base=16)  # parses the hex part
+    else:
+        return int(expr)
 
 
 def convert(input_filename: str, output_filename: str, pack_format: int,
-            description: str, compresslevel: int):
+            description: str, compresslevel: int, range):
     with ResourcePack(output_filename, compresslevel=compresslevel) as output:
         output.write_pack_mcmeta(pack_format, description)
         font = Font(input_filename)
-        for glyph in font.iterglyphs():
+        for glyph in font.iterglyphs(r=range):
             output.add_glyph(ProviderGlyph(glyph))
         output.flush()
 
