@@ -9,6 +9,7 @@ from bdfparser import Font, Glyph
 from io import TextIOWrapper
 from zipfile import ZipFile
 from PIL import Image
+from tqdm import tqdm
 
 DEFAULT_OUTPUT_FILENAME = "pack.zip"
 
@@ -89,7 +90,8 @@ def convert(input_filename: str, output_filename: str, pack_format: int,
         output.write_pack_mcmeta(pack_format, description)
         font = Font(input_filename)
         output.write_font_info(font)
-        for glyph in font.iterglyphs(r=range):
+        glyphs = list(font.iterglyphs(r=range))
+        for glyph in tqdm(glyphs, desc="Create glyph images"):
             output.add_glyph(ProviderGlyph(glyph))
         output.flush()
 
@@ -202,8 +204,10 @@ class Provider:
         image_height = glyph_height * vertial_glyph_count
         result = Image.new(
                 "RGBA", (image_width, image_height), COLOR_TRANSPARENT)
-        for i, image in enumerate(
-                map(lambda glyph: glyph.to_image(), self.__glyphs)):
+        desc = f"Create {self.filename()}"
+        for i, image in tqdm(
+                enumerate(map(lambda glyph: glyph.to_image(), self.__glyphs)),
+                desc=desc, total=len(self.__glyphs)):
             x_offset = i % horizontal_glyph_count * glyph_width
             y_offset = i // horizontal_glyph_count * glyph_height
             result.paste(image, (x_offset, y_offset))
@@ -211,6 +215,9 @@ class Provider:
 
     def filename(self):
         return f"font/{self.__provider_type.base_name(self.__classifier)}.png"
+
+    def file_data(self):
+        return (self.filename(), self.image())
 
     def horizontal_glyph_count(self):
         return min(len(self.__glyphs), Provider.__HORIZONTAL_GLYPH_MAX)
@@ -256,10 +263,12 @@ class ResourcePack(ZipFile):
         providers = self.__provider_set.providers()
         self.write_providers(list(
                 map(lambda provider: provider.json_object(), providers)))
-        for provider in providers:
-            self.write_image(
-                    "assets/minecraft/textures/" + provider.filename(),
-                    provider.image())
+        file_count = len(providers)
+        file_data_iter = map(lambda provider: provider.file_data(), providers)
+        file_data_list = list(tqdm(
+                file_data_iter, desc="Create image files", total=file_count))
+        for filename, image in tqdm(file_data_list, desc="Save image files"):
+            self.write_image("assets/minecraft/textures/" + filename, image)
         self.__provider_set = ProviderSet()
 
     def write_json(self, filename: str, json_object: dict,

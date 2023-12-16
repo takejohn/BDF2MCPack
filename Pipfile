@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 bdfparser = "*"
 pillow = "*"
+tqdm = "*"
 
 [dev-packages]
 pipenv-setup = "*"
