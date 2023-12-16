@@ -88,6 +88,7 @@ def convert(input_filename: str, output_filename: str, pack_format: int,
     with ResourcePack(output_filename, compresslevel=compresslevel) as output:
         output.write_pack_mcmeta(pack_format, description)
         font = Font(input_filename)
+        output.write_font_info(font)
         for glyph in font.iterglyphs(r=range):
             output.add_glyph(ProviderGlyph(glyph))
         output.flush()
@@ -238,6 +239,10 @@ class ProviderSet:
 
 
 class ResourcePack(ZipFile):
+    __FONT_INFO_FILENAME = "font-info.json"
+
+    __FONT_INFO_INDENT = 4
+
     def __init__(self, file: str, compresslevel: int):
         super().__init__(
             file, "w", compression=zipfile.ZIP_DEFLATED,
@@ -257,9 +262,12 @@ class ResourcePack(ZipFile):
                     provider.image())
         self.__provider_set = ProviderSet()
 
-    def write_json(self, filename: str, json_object: dict):
+    def write_json(self, filename: str, json_object: dict,
+                   indent: int | str | None = None):
         with self.open(filename, "w") as json_file:
-            json.dump(json_object, TextIOWrapper(json_file, "utf-8"))
+            json.dump(
+                    json_object, TextIOWrapper(json_file, "utf-8"),
+                    indent=indent)
 
     def write_pack_mcmeta(self, pack_format: int, description: str):
         self.write_json("pack.mcmeta", {
@@ -268,6 +276,12 @@ class ResourcePack(ZipFile):
                 "description": description
             }
         })
+
+    def write_font_info(self, font: Font):
+        self.write_json(ResourcePack.__FONT_INFO_FILENAME, {
+            "headers": font.headers,
+            "props": font.props
+        }, ResourcePack.__FONT_INFO_INDENT)
 
     def write_providers(self, providers: list[dict]):
         self.write_json("assets/minecraft/font/default.json", {
