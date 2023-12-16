@@ -8,10 +8,9 @@ The application requires Python 3.7 or above.
 
 ### Windows, Linux and MacOS
 
-Use [pip](https://pip.pypa.io/en/stable/installation/) to install the module
-from this repository.
+Use [pip](https://pip.pypa.io/en/stable/installation/) to install the module.
 ```sh
-pip install git+https://github.com/takejohn/BDF2MCPack.git
+pip install bdf2mcpack
 ```
 
 Make sure that the executable file (`bdf2mcpack.exe` or `bdf2mcpack`) is
@@ -64,8 +63,8 @@ bdf2mcpack unifont_jp-15.1.04.bdf -o kanji.zip -r U+4E00-U+9FFF
 
 * [bdfparser](https://github.com/tomchen/bdfparser)
 * [Pillow](https://github.com/python-pillow/Pillow)
+* [tqdm](https://github.com/tqdm/tqdm)
 
 ## License
 
 This program is distributed under Apache-2.0 license.  
-See [`/LICENSE`](/LICENSE) for detail.
