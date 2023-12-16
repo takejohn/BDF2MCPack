@@ -1,7 +1,8 @@
 # BDF2MCPack
 
 BDF2MCPack is a CLI application to convert a BDF type font file to a resource
-pack for Minecraft.
+pack for Minecraft.  
+The application requires Python 3.7 or above.
 
 ## Usage
 
